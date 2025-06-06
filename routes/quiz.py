@@ -62,27 +62,11 @@ def generate_quiz():
         combined_text = extracted_text[:43000]
 
         prompt = (
-            "You are a professional academic quiz generator for college students. "
-            "Based on the provided educational content, create a comprehensive quiz that covers all key concepts, facts, and definitions. "
-            f"Generate {num_questions} questions (minimum 10, maximum 20, depending on content size). "
-            "Use a mix of question types: multiple choice, true/false, and short answer. "
-            "For multiple choice, provide 4 options (A–D) and indicate the correct answer letter. "
-            "For true/false, provide the statement and the answer. "
-            "For short answer, provide the question and the answer. "
-            "Distribute the questions to cover as much of the material as possible, not just the beginning. "
-            "STRICT FORMAT: Each question block must be separated by a line with only '----'. "
-            "Each question block must be in this format:\n"
-            "Q: <question>\n"
-            "Type: <Multiple Choice/True or False/Short Answer>\n"
-            "A. <choice> (for MC only)\n"
-            "B. <choice>\n"
-            "C. <choice>\n"
-            "D. <choice>\n"
-            "Answer: <letter/True/False/short answer>\n"
-            "----\n"
-            "Do NOT include any explanations or extra text. Only output the quiz blocks.\n"
-            "Content:\n"
-            f"{combined_text}\n"
+            "You are a helpful quiz generator. Based on the following content, generate "
+            f"{num_questions} multiple choice reviewer questions. "
+            "Each question should have 4 choices (A–D) and clearly indicate the correct answer letter after each question.\n\n"
+            f"Content:\n{combined_text}\n\n"
+            "Format:\nQ: <question>\nA. <choice>\nB. <choice>\nC. <choice>\nD. <choice>\nAnswer: <letter>\n"
         )
 
         api_url = "https://openrouter.ai/api/v1/chat/completions"
@@ -107,46 +91,26 @@ def generate_quiz():
 
         content = result["choices"][0]["message"]["content"]
 
-        # Extract questions using regex (handles all types)
-        question_blocks = re.split(r'-{2,}', content)
+        # Extract multiple choice questions using regex
+        question_blocks = re.findall(
+            r"Q:\s*(.*?)\nA\.\s*(.*?)\nB\.\s*(.*?)\nC\.\s*(.*?)\nD\.\s*(.*?)\nAnswer:\s*([ABCD])",
+            content,
+            re.DOTALL
+        )
         quiz = []
-        for idx, block in enumerate(question_blocks, 1):
-            q_match = re.search(r"Q:\s*(.*?)\nType:\s*(.*?)\n", block, re.DOTALL)
-            if not q_match:
-                continue
-            question = q_match.group(1).strip()
-            qtype = q_match.group(2).strip().lower()
-            answer = ""
-            choices = {}
-            if "multiple" in qtype:
-                a = re.search(r"A\.\s*(.*?)\n", block)
-                b = re.search(r"B\.\s*(.*?)\n", block)
-                c = re.search(r"C\.\s*(.*?)\n", block)
-                d = re.search(r"D\.\s*(.*?)\n", block)
-                answer_match = re.search(r"Answer:\s*([ABCD])", block)
-                choices = {
-                    "A": a.group(1).strip() if a else "",
-                    "B": b.group(1).strip() if b else "",
-                    "C": c.group(1).strip() if c else "",
-                    "D": d.group(1).strip() if d else "",
-                }
-                answer = answer_match.group(1).strip() if answer_match else ""
-            elif "true" in qtype:
-                answer_match = re.search(r"Answer:\s*(True|False)", block, re.IGNORECASE)
-                answer = answer_match.group(1).strip() if answer_match else ""
-            elif "short" in qtype:
-                answer_match = re.search(r"Answer:\s*(.*)", block)
-                answer = answer_match.group(1).strip() if answer_match else ""
+        for idx, (question, a, b, c, d, answer) in enumerate(question_blocks, 1):
             quiz.append({
                 "number": idx,
-                "question": question,
-                "type": qtype,
-                "choices": choices,
-                "answer": answer
+                "question": question.strip(),
+                "type": "multiple choice",
+                "choices": {
+                    "A": a.strip(),
+                    "B": b.strip(),
+                    "C": c.strip(),
+                    "D": d.strip()
+                },
+                "answer": answer.strip()
             })
-
-        # Only return questions that were parsed correctly
-        quiz = [q for q in quiz if q["question"] and q["answer"]]
 
         return jsonify({"quiz": quiz})
 
