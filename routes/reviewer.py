@@ -7,7 +7,10 @@ import os
 from dotenv import load_dotenv
 import tempfile
 
-load_dotenv()
+load_dotenv()  # This loads .env locally, but on Render, env vars are injected automatically
+
+api_key = os.getenv("OPENROUTER_API_KEY")
+print("API KEY:", repr(api_key))
 
 reviewer_bp = Blueprint('reviewer', __name__)
 
@@ -51,7 +54,6 @@ def generate_reviewer():
         )
 
         api_url = "https://openrouter.ai/api/v1/chat/completions"
-        api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
             return jsonify({"error": "API key not set in .env"}), 500
 
