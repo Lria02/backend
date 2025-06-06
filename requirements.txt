@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+PyMuPDF
+python-pptx
+openai  # or openrouter if you’re using that API
+aiofiles
+flask
+gunicorn
+flask-cors
