@@ -70,7 +70,8 @@ def generate_quiz():
             "For true/false, provide the statement and the answer. "
             "For short answer, provide the question and the answer. "
             "Distribute the questions to cover as much of the material as possible, not just the beginning. "
-            "Format the quiz as follows:\n\n"
+            "STRICT FORMAT: Each question block must be separated by a line with only '----'. "
+            "Each question block must be in this format:\n"
             "Q: <question>\n"
             "Type: <Multiple Choice/True or False/Short Answer>\n"
             "A. <choice> (for MC only)\n"
@@ -79,6 +80,7 @@ def generate_quiz():
             "D. <choice>\n"
             "Answer: <letter/True/False/short answer>\n"
             "----\n"
+            "Do NOT include any explanations or extra text. Only output the quiz blocks.\n"
             "Content:\n"
             f"{combined_text}\n"
         )
