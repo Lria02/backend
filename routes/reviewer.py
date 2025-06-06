@@ -69,7 +69,9 @@ def generate_reviewer():
         }
 
         response = requests.post(api_url, headers=headers, json=data)
+        print("OpenRouter response:", response.status_code, response.text)  # Add this line
         result = response.json()
+
         # Defensive check for 'choices'
         if "choices" in result and result["choices"]:
             reviewer_content = result["choices"][0]["message"]["content"]
