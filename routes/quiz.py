@@ -64,9 +64,11 @@ def generate_quiz():
         prompt = (
             "You are a helpful quiz generator. Based on the following content, generate "
             f"{num_questions} multiple choice reviewer questions. "
-            "Each question should have 4 choices (A–D) and clearly indicate the correct answer letter after each question.\n\n"
-            f"Content:\n{combined_text}\n\n"
-            "Format:\nQ: <question>\nA. <choice>\nB. <choice>\nC. <choice>\nD. <choice>\nAnswer: <letter>\n"
+            "Each question should have 4 choices (A–D) and clearly indicate the correct answer letter after each question. "
+            "STRICT FORMAT: For each question, use this format and nothing else:\n"
+            "Q: <question>\nA. <choice>\nB. <choice>\nC. <choice>\nD. <choice>\nAnswer: <letter>\n"
+            "Do not include explanations or extra text. Only output the questions in the specified format.\n"
+            f"Content:\n{combined_text}\n"
         )
 
         api_url = "https://openrouter.ai/api/v1/chat/completions"
