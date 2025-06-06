@@ -68,9 +68,13 @@ def generate_reviewer():
 
         response = requests.post(api_url, headers=headers, json=data)
         result = response.json()
-        reviewer_content = result["choices"][0]["message"]["content"]
-
-        return jsonify({"reviewer": reviewer_content})
+        # Defensive check for 'choices'
+        if "choices" in result and result["choices"]:
+            reviewer_content = result["choices"][0]["message"]["content"]
+            return jsonify({"reviewer": reviewer_content})
+        else:
+            # Return the full API error if available
+            return jsonify({"error": result.get("error", "No 'choices' in API response"), "api_response": result}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
