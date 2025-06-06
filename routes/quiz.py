@@ -1,15 +1,33 @@
 from flask import Blueprint, request, jsonify
-from extract.extractor import extract_text_from_file
 import requests
 import os
 from dotenv import load_dotenv
 import tempfile
+import re
+from pptx import Presentation
+import fitz  # PyMuPDF
 
-load_dotenv()  # For local dev; on Render, env vars are injected
-
-api_key = os.getenv("OPENROUTER_API_KEY")
+load_dotenv()
 
 quiz_bp = Blueprint('quiz', __name__)
+
+def extract_text(file_path):
+    all_text = []
+    if file_path.lower().endswith(".pptx"):
+        prs = Presentation(file_path)
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text"):
+                    text = shape.text.strip()
+                    if text:
+                        all_text.append(text)
+    elif file_path.lower().endswith(".pdf"):
+        doc = fitz.open(file_path)
+        for page in doc:
+            text = page.get_text().strip()
+            if text:
+                all_text.append(text)
+    return "\n".join(all_text)
 
 @quiz_bp.route('/', methods=['POST'])
 def generate_quiz():
@@ -19,49 +37,34 @@ def generate_quiz():
     file = request.files['file']
 
     try:
-        # Save uploaded file to a temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
             file.save(tmp)
             tmp_path = tmp.name
 
-        extracted_text = extract_text_from_file(tmp_path)
+        extracted_text = extract_text(tmp_path)
         os.remove(tmp_path)
 
         if not extracted_text.strip():
             return jsonify({"error": "No readable text found."}), 400
 
-        # Use up to 43,000 characters (about 90% of context window)
-        combined_text = extracted_text[:43000]
+        combined_text = extracted_text[:2000]
 
         prompt = (
-            "You are an expert quiz generator for students. "
-            "Based on the following educational content, generate a quiz with a minimum of 10 and a maximum of 20 questions. "
-            "Questions should be a mix of multiple choice, true/false, and short answer. "
-            "Each question should be clear and relevant to the content. "
-            "For multiple choice, provide 4 options and indicate the correct answer. "
-            "For true/false, just state the statement and the answer. "
-            "For short answer, provide the question and the answer. "
-            "Format the quiz as follows:\n\n"
-            "1. [Question]\n"
-            "   a) Option 1\n"
-            "   b) Option 2\n"
-            "   c) Option 3\n"
-            "   d) Option 4\n"
-            "   Answer: [Correct Option]\n"
-            "...\n"
-            "Include at least 10 questions, but not more than 20, depending on the content length.\n\n"
-            f"Content:\n{combined_text}\n"
+            "You are a helpful quiz generator. Based on the following content, generate 10 multiple-choice reviewer questions. "
+            "Each question should have 4 choices (A–D) and clearly indicate the correct answer letter after each question.\n\n"
+            f"Content:\n{combined_text}\n\n"
+            "Format:\nQ: <question>\nA. <choice>\nB. <choice>\nC. <choice>\nD. <choice>\nAnswer: <letter>\n"
         )
 
         api_url = "https://openrouter.ai/api/v1/chat/completions"
+        api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            return jsonify({"error": "API key not set in .env"}), 500
+            return jsonify({"error": "API key not set"}), 500
 
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-
         data = {
             "model": "openai/gpt-3.5-turbo",
             "messages": [{"role": "user", "content": prompt}],
@@ -69,14 +72,37 @@ def generate_quiz():
         }
 
         response = requests.post(api_url, headers=headers, json=data)
-        print("OpenRouter Quiz response:", response.status_code, response.text)
         result = response.json()
-
-        if "choices" in result and result["choices"]:
-            quiz_content = result["choices"][0]["message"]["content"]
-            return jsonify({"quiz": quiz_content})
-        else:
+        if "choices" not in result or not result["choices"]:
             return jsonify({"error": result.get("error", "No 'choices' in API response"), "api_response": result}), 500
+
+        content = result["choices"][0]["message"]["content"]
+
+        # Extract questions using regex
+        questions = re.findall(
+            r"Q:\s*(.*?)\nA\.\s*(.*?)\nB\.\s*(.*?)\nC\.\s*(.*?)\nD\.\s*(.*?)\nAnswer:\s*([ABCD])",
+            content,
+            re.DOTALL
+        )
+
+        if not questions:
+            return jsonify({"error": "Failed to parse questions. Please check the format of the generated output.", "raw": content}), 500
+
+        quiz = []
+        for idx, (question, a, b, c, d, answer) in enumerate(questions, 1):
+            quiz.append({
+                "number": idx,
+                "question": question.strip(),
+                "choices": {
+                    "A": a.strip(),
+                    "B": b.strip(),
+                    "C": c.strip(),
+                    "D": d.strip()
+                },
+                "answer": answer.strip()
+            })
+
+        return jsonify({"quiz": quiz})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
